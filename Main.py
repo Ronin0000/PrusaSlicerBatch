@@ -63,7 +63,7 @@ def import_and_split_file(file_path):
 
 
 # Function to slice and export G-code
-def slice_and_export_gcode(export_path):
+def slice_and_export_gcode(export_path, folder_name, file_index):
     try:
         print("Pressing 'A', waiting for 5 seconds...")
         pyautogui.press('a')
@@ -77,22 +77,32 @@ def slice_and_export_gcode(export_path):
         pyautogui.hotkey('ctrl', 'g')
         time.sleep(1)
         pyperclip.copy(export_path)
-        pyautogui.hotkey('ctrl', 'v')
         time.sleep(1)
-        pyautogui.press('enter')
+        # Navigate file explorer, paste path, and rename file
+        pyautogui.click(2955, 72)  # Click to focus on file explorer path bar
         time.sleep(1)
-
-        print("Pressing 'Ctrl+5' to go back to the editor view...")
-        pyautogui.hotkey('ctrl', '5')
+        pyautogui.hotkey('ctrl', 'a')  # Select existing name
         time.sleep(1)
-        pyautogui.press('delete')
+        pyautogui.press('delete')  # Delete existing name
         time.sleep(1)
-        print("G-code exported and file deleted.")
+        pyautogui.typewrite(export_path)
+        time.sleep(1)
+        pyautogui.click(2781, 1286)  # Click to focus on file name
+        time.sleep(1)
+        pyautogui.hotkey('ctrl', 'a')  # Select existing name
+        time.sleep(1)
+        pyautogui.press('delete')  # Delete existing name
+        time.sleep(1)
+        new_file_name = folder_name.replace(" ", "").lower() + str(file_index + 1) + ".gcode"
+        pyautogui.typewrite(new_file_name)  # Type new name
+        time.sleep(1)
+        print("G-code exported, file renamed.")
     except Exception as e:
         print(f"Error during slicing and exporting G-code: {e}")
 
 
-# Main function
+
+# Main functiona
 def main():
     base_dir = "F:\\LightSwitchWallPlates\\Images\\Products"
     pattern = "*Sliced2"
@@ -120,12 +130,11 @@ def main():
 
         # Slice and export G-code
         export_path = "C:\\Users\\Ronin Stegner\\OneDrive\\Desktop\\Output"
-        slice_and_export_gcode(export_path)
+        slice_and_export_gcode(export_path, os.path.basename(folder), index)
 
         elapsed_time = time.time() - start_time
-        remaining_time = elapsed_time * (len(folders) - (index + 1))
-        print(f"Elapsed time for {folder}: {elapsed_time:.2f} seconds.")
-        print(f"Estimated remaining time: {remaining_time:.2f} seconds.")
+        if not enable_batch:
+            print(f"Elapsed time for {folder}: {elapsed_time:.2f} seconds.")
 
         # Open a new instance of PrusaSlicer for each subsequent folder
         if enable_batch and index < len(folders) - 1:
