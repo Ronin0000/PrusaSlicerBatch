@@ -50,7 +50,7 @@ def import_and_split_file(file_path):
         time.sleep(1)
         pyautogui.press('enter')
         time.sleep(5)  # Wait for the file to load
-        # Right-click and choose split to object (assuming coordinates)
+        # Right-click and choose split to object (adjust coordinates as needed)
         pyautogui.rightClick(2544, 855)  # Adjust coordinates as needed
         time.sleep(1)
         pyautogui.click(2686, 555)  # Adjust coordinates as needed for "split to object"
@@ -62,6 +62,36 @@ def import_and_split_file(file_path):
         print(f"Error importing or splitting file {file_path}: {e}")
 
 
+# Function to slice and export G-code
+def slice_and_export_gcode(export_path):
+    try:
+        print("Pressing 'A', waiting for 5 seconds...")
+        pyautogui.press('a')
+        time.sleep(5)
+
+        print("Pressing 'Ctrl+R' to slice, waiting for 20 seconds...")
+        pyautogui.hotkey('ctrl', 'r')
+        time.sleep(30)
+
+        print("Pressing 'Ctrl+G' to export the G-code...")
+        pyautogui.hotkey('ctrl', 'g')
+        time.sleep(1)
+        pyperclip.copy(export_path)
+        pyautogui.hotkey('ctrl', 'v')
+        time.sleep(1)
+        pyautogui.press('enter')
+        time.sleep(1)
+
+        print("Pressing 'Ctrl+5' to go back to the editor view...")
+        pyautogui.hotkey('ctrl', '5')
+        time.sleep(1)
+        pyautogui.press('delete')
+        time.sleep(1)
+        print("G-code exported and file deleted.")
+    except Exception as e:
+        print(f"Error during slicing and exporting G-code: {e}")
+
+
 # Main function
 def main():
     base_dir = "F:\\LightSwitchWallPlates\\Images\\Products"
@@ -69,11 +99,10 @@ def main():
     folders = [f for f in glob.glob(os.path.join(base_dir, pattern)) if os.path.isdir(f)]
 
     # Enable/disable batch function
-    enable_batch = True
+    enable_batch = False
 
     if not enable_batch:
         print("Batch function is disabled.")
-        return
 
     # Open an initial instance of PrusaSlicer
     open_prusaslicer()
@@ -89,14 +118,18 @@ def main():
         import_file_path = "F:\\LightSwitchWallPlates\\Images\\Products\\BlueLeaf-Sliced2\\3DModels\\Pictures-(C-1,C-2,C-3,B-1,A-2,A-3).stl"
         import_and_split_file(import_file_path)
 
-        # Open a new instance of PrusaSlicer for each subsequent folder
-        if index < len(folders) - 1:
-            open_new_instance()
+        # Slice and export G-code
+        export_path = "C:\\Users\\Ronin Stegner\\OneDrive\\Desktop\\Output"
+        slice_and_export_gcode(export_path)
 
         elapsed_time = time.time() - start_time
         remaining_time = elapsed_time * (len(folders) - (index + 1))
         print(f"Elapsed time for {folder}: {elapsed_time:.2f} seconds.")
         print(f"Estimated remaining time: {remaining_time:.2f} seconds.")
+
+        # Open a new instance of PrusaSlicer for each subsequent folder
+        if enable_batch and index < len(folders) - 1:
+            open_new_instance()
 
 
 if __name__ == "__main__":
