@@ -2,6 +2,7 @@ import subprocess
 import time
 import pyautogui
 import os
+import re
 import glob
 import pyperclip
 import tkinter as tk
@@ -10,12 +11,17 @@ from threading import Thread
 
 stop_requested = False
 
+# Regular expression pattern for matching the filenames
+pattern = re.compile(r"^stl_\d+\.stl$")
+
+
 # Function to open PrusaSlicer
 def open_prusaslicer():
     prusaslicer_path = "C:\\Program Files\\Prusa3D\\PrusaSlicer\\prusa-slicer.exe"
     subprocess.Popen([prusaslicer_path])
     time.sleep(5)  # Adjusted delay to ensure PrusaSlicer is fully loaded
     log_message("PrusaSlicer opened.")
+
 
 # Function to send Ctrl+O, open a file, and delete it
 def open_and_delete_file(file_path):
@@ -34,6 +40,7 @@ def open_and_delete_file(file_path):
     except Exception as e:
         log_message(f"Error opening or deleting file {file_path}: {e}")
 
+
 # Function to open a new instance of PrusaSlicer
 def open_new_instance():
     try:
@@ -44,93 +51,105 @@ def open_new_instance():
     except Exception as e:
         log_message(f"Error opening new instance of PrusaSlicer: {e}")
 
-# Function to import a new file and split it into objects
-def import_and_split_file(file_path):
-    try:
-        log_message(f"Importing file: {file_path}")
-        pyautogui.hotkey('ctrl', 'i')
-        time.sleep(0.1)
-        pyperclip.copy(file_path)
-        pyautogui.hotkey('ctrl', 'v')
-        time.sleep(0.1)
-        pyautogui.press('enter')
-        time.sleep(5)  # Increase the delay for the file to load
-        pyautogui.rightClick(2544, 855)  # Adjust coordinates as needed
-        time.sleep(0.1)
-        pyautogui.click(2686, 555)  # Adjust coordinates as needed for "split to object"
-        time.sleep(0.1)
-        pyautogui.click(2918, 555)  # Adjust coordinates as needed for "split to object"
-        time.sleep(5)  # Increase the delay for the split action to complete
-        log_message(f"File {file_path} imported and split into objects.")
-    except Exception as e:
-        log_message(f"Error importing or splitting file {file_path}: {e}")
 
-# Function to slice and export G-code
-def slice_and_export_gcode(export_path, folder_name, file_index):
+# Function to import, split, slice, and export G-code
+def import_split_slice_export(directory_path, export_path, folder_name, file_index):
     try:
-        log_message("Pressing 'A', waiting for 3 seconds...")
-        pyautogui.press('a')
-        time.sleep(3)
+        filenames = [f for f in os.listdir(directory_path) if pattern.match(f)]
+        total_files = len(filenames)
 
-        log_message("Pressing 'Ctrl+R' to slice, waiting for 20 seconds...")
-        pyautogui.hotkey('ctrl', 'r')
-        update_progress(0, 20)
-        for i in range(20):
+        start_time = time.time()
+        total_tasks = total_files  # Total tasks are the total number of files to be processed
+
+        for i, filename in enumerate(filenames):
             if stop_requested:
-                log_message("Stopping operation...")
                 return
+
+            import_file = os.path.join(directory_path, filename)
+            log_message(f"Current file: {import_file}")
+
+            log_message(f"Importing file: {import_file}")
+            pyautogui.hotkey('ctrl', 'i')
+            time.sleep(0.1)
+            pyperclip.copy(import_file)
+            pyautogui.hotkey('ctrl', 'v')
+            time.sleep(0.1)
+            pyautogui.press('enter')
+            time.sleep(5)  # Increase the delay for the file to load
+
+            pyautogui.rightClick(2544, 855)  # Adjust coordinates as needed
+            time.sleep(0.1)
+            pyautogui.click(2686, 555)  # Adjust coordinates as needed for "split to object"
+            time.sleep(0.1)
+            pyautogui.click(2918, 555)  # Adjust coordinates as needed for "split to object"
+            time.sleep(5)  # Increase the delay for the split action to complete
+            log_message(f"File {import_file} imported and split into objects.")
+
+            log_message("Pressing 'A', waiting for 3 seconds...")
+            pyautogui.press('a')
+            time.sleep(3)
+
+            log_message("Pressing 'Ctrl+R' to slice, waiting for 20 seconds...")
+            pyautogui.hotkey('ctrl', 'r')
+            update_progress(0, 20)
+            for j in range(20):
+                if stop_requested:
+                    log_message("Stopping operation...")
+                    return
+                time.sleep(1)
+                update_progress(j + 1, 20)
+
+            log_message("Pressing 'Ctrl+G' to export the G-code...")
+            pyautogui.hotkey('ctrl', 'g')
+            time.sleep(0.1)
+            pyperclip.copy(export_path)
+            pyautogui.hotkey('ctrl', 'v')
+            time.sleep(0.1)
+            pyautogui.press('enter')
+            time.sleep(0.1)
+
+            pyautogui.click(2955, 72)  # Click to focus on file explorer path bar
+            time.sleep(0.1)
+            pyautogui.hotkey('ctrl', 'a')  # Select existing name
+            time.sleep(0.1)
+            pyautogui.press('delete')  # Delete existing name
+            time.sleep(0.1)
+            pyautogui.typewrite(export_path)
+            time.sleep(0.1)
+
+            pyautogui.click(2781, 1286)  # Click to focus on file name
+            time.sleep(0.1)
+            pyautogui.hotkey('ctrl', 'a')  # Select existing name
+            time.sleep(0.1)
+            pyautogui.press('delete')  # Delete existing name
+            time.sleep(0.1)
+
+            new_folder_name = folder_name.split('-')[0].replace(" ", "").lower() + "SlicedF"
+            new_file_name = new_folder_name + str(file_index + 1) + f"_{i + 1}"
+
+            pyautogui.typewrite(new_file_name)
+            time.sleep(0.1)
+            pyautogui.press('enter')
+            time.sleep(0.1)
+
+            # Additional steps: Press delete and arrange
+            pyautogui.press('delete')
             time.sleep(1)
-            update_progress(i + 1, 20)
 
-        log_message("Pressing 'Ctrl+G' to export the G-code...")
-        pyautogui.hotkey('ctrl', 'g')
-        time.sleep(0.1)
-        pyperclip.copy(export_path)
-        pyautogui.hotkey('ctrl', 'v')
-        time.sleep(0.1)
-        pyautogui.press('enter')
-        time.sleep(0.1)
+            log_message("G-code exported, file renamed, and additional steps performed.")
 
-        pyautogui.click(2955, 72)  # Click to focus on file explorer path bar
-        time.sleep(0.1)
-        pyautogui.hotkey('ctrl', 'a')  # Select existing name
-        time.sleep(0.1)
-        pyautogui.press('delete')  # Delete existing name
-        time.sleep(0.1)
-        pyautogui.typewrite(export_path)
-        time.sleep(0.1)
+            # Update progress for each file
+            update_remaining_time(start_time, total_tasks, i + 1)
 
-        pyautogui.click(2781, 1286)  # Click to focus on file name
-        time.sleep(0.1)
-        pyautogui.hotkey('ctrl', 'a')  # Select existing name
-        time.sleep(0.1)
-        pyautogui.press('delete')  # Delete existing name
-        time.sleep(0.1)
-
-        new_folder_name = folder_name.split('-')[0].replace(" ", "").lower() + "SlicedF"
-        new_file_name = new_folder_name + str(file_index + 1)
-
-        pyautogui.typewrite(new_file_name)
-        time.sleep(0.1)        pyautogui.press('enter')
-        time.sleep(0.1)
-
-        # Additional steps: Press delete and arrange
-        pyautogui.press('delete')
-        time.sleep(1)
-        pyautogui.hotkey('ctrl', 'a')
-        time.sleep(3)
-        pyautogui.hotkey('alt', 'f4')
-        time.sleep(5)  # Give some time to close
-
-        log_message("G-code exported, file renamed, and additional steps performed.")
     except Exception as e:
-        log_message(f"Error during slicing and exporting G-code: {e}")
+        log_message(f"Error during import, splitting, slicing, and exporting G-code: {e}")
 
 # Function to log messages in the GUI
 def log_message(message):
     log_text.insert(tk.END, message + "\n")
     log_text.see(tk.END)
     root.update()
+
 
 # Function to update remaining time
 def update_remaining_time(start_time, total_tasks, completed_tasks):
@@ -150,17 +169,20 @@ def update_remaining_time(start_time, total_tasks, completed_tasks):
         progress_percent_label.config(text="0%")
     root.update()
 
+
 # Function to update progress bar
 def update_progress(current, total):
     progress_var.set((current / total) * 100)
     progress_percent_label.config(text=f"{(current / total) * 100:.2f}%")
     root.update()
 
+
 # Function to stop the automation
 def stop_automation():
     global stop_requested
     stop_requested = True
     log_message("Stop requested. Please wait for the current operation to finish.")
+
 
 # Main function
 def main():
@@ -186,11 +208,9 @@ def main():
         delete_file_path = os.path.join(folder, "3DModels", "A", "A-1(F).3mf")
         open_and_delete_file(delete_file_path)
 
-        import_file_path = os.path.join(folder, "3DModels", "Pictures-(C-1,C-2,C-3,B-1,A-2,A-3).stl")
-        import_and_split_file(import_file_path)
-
+        import_file_path = os.path.join(folder, "3DModels", "Main")
         export_path = "C:\\Users\\Ronin Stegner\\OneDrive\\Desktop\\Output"
-        slice_and_export_gcode(export_path, os.path.basename(folder), index)
+        import_split_slice_export(import_file_path, export_path, os.path.basename(folder), index)
 
         elapsed_time = time.time() - task_start_time
         log_message(f"Elapsed time for {folder}: {elapsed_time:.2f} seconds.")
@@ -205,10 +225,12 @@ def main():
     else:
         log_message("Automation stopped by user.")
 
+
 # Function to start the main function in a separate thread
 def start_main():
     thread = Thread(target=main)
     thread.start()
+
 
 # Setting up the GUI
 root = tk.Tk()
@@ -226,10 +248,10 @@ log_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
 log_text.config(yscrollcommand=log_scrollbar.set)
 
 remaining_time_label = ttk.Label(root, text="Estimated Remaining Time: Calculating...")
-remaining_time_label.pack(pady=10, side=tk.RIGHT)
+remaining_time_label.pack(pady=10)
 
 slices_remaining_label = ttk.Label(root, text="Slices Remaining: N/A")
-slices_remaining_label.pack(pady=10, side=tk.RIGHT)
+slices_remaining_label.pack(pady=10)
 
 progress_var = tk.DoubleVar()
 progress_bar = ttk.Progressbar(root, variable=progress_var, maximum=100)
